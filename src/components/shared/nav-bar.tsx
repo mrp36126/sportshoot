@@ -11,7 +11,6 @@ import {
   Trophy,
   Target,
   Shield,
-  Settings,
   LogOut,
   Menu,
   X,
@@ -19,25 +18,23 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { useAuthStore } from '@/stores/auth-store';
-import { createClient } from '@/lib/supabase/client';
+import { useSession, signOut } from 'next-auth/react';
 
 const navItems = [
   { href: '/dashboard', label: 'Home', icon: Home },
   { href: '/firearms', label: 'Firearms', icon: Crosshair },
   { href: '/leaderboard', label: 'Leaderboards', icon: Trophy },
-  { href: '/competitions', label: 'Competitions', icon: Target },
   { href: '/statistics', label: 'Statistics', icon: BarChart3 },
+  { href: '/progress', label: 'Progress', icon: BarChart3 },
 ];
 
 export function NavBar() {
   const pathname = usePathname();
-  const { profile, isAdmin } = useAuthStore();
+  const { data: session } = useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const supabase = createClient();
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await signOut({ callbackUrl: '/login' });
   };
 
   // Don't show nav on auth pages
@@ -104,35 +101,17 @@ export function NavBar() {
               </Link>
             );
           })}
-
-          {isAdmin && (
-            <Link
-              href="/admin"
-              className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors',
-                pathname.startsWith('/admin')
-                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'
-              )}
-            >
-              <Shield className="h-5 w-5" />
-              Admin
-            </Link>
-          )}
         </nav>
 
         <div className="border-t border-gray-200 px-4 py-4 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-sm font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                {profile?.display_name?.[0]?.toUpperCase() || 'U'}
+                {session?.user?.name?.[0]?.toUpperCase() || 'U'}
               </div>
               <div className="text-sm">
                 <p className="font-medium text-gray-900 dark:text-gray-100">
-                  {profile?.display_name || 'User'}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {profile?.role}
+                  {session?.user?.name || 'User'}
                 </p>
               </div>
             </div>
@@ -183,22 +162,12 @@ export function NavBar() {
                 {item.label}
               </Link>
             ))}
-            {isAdmin && (
-              <Link
-                href="/admin"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-              >
-                <Shield className="h-5 w-5" />
-                Admin
-              </Link>
-            )}
             <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
             <div className="flex items-center justify-between px-3 py-2">
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 text-gray-400" />
                 <span className="text-sm text-gray-600 dark:text-gray-400">
-                  {profile?.display_name || 'User'}
+                  {session?.user?.name || 'User'}
                 </span>
               </div>
               <Button

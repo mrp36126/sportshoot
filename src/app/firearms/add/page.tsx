@@ -2,23 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { ArrowLeft, Save } from 'lucide-react';
-import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui/button';
 import { SearchableSelect, type SelectOption } from '@/components/shared/searchable-select';
-import { createClient } from '@/lib/supabase/client';
-import {
-  getManufacturers,
-  getModelsByManufacturer,
-  getCalibres,
-  getFirearmTypes,
-  getSightTypes,
-} from '@/lib/supabase/queries';
+import { getManufacturers, getModelsByManufacturer, getCalibres, getFirearmTypes, getSightTypes } from '@/lib/turso/queries';
 
 export default function AddFirearmPage() {
   const router = useRouter();
-  const { user, isLoading } = useAuthStore();
-  const supabase = createClient();
+  const { data: session, status } = useSession();
 
   const [manufacturers, setManufacturers] = useState<SelectOption[]>([]);
   const [models, setModels] = useState<SelectOption[]>([]);
@@ -38,7 +30,7 @@ export default function AddFirearmPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isLoading && !user) {
+    if (status === 'unauthenticated') {
       router.push('/login');
       return;
     }
@@ -58,7 +50,7 @@ export default function AddFirearmPage() {
     };
 
     loadData();
-  }, [user, isLoading, router]);
+  }, [status, router]);
 
   useEffect(() => {
     if (manufacturerId) {
@@ -72,7 +64,7 @@ export default function AddFirearmPage() {
   }, [manufacturerId]);
 
   const handleSave = async () => {
-    if (!user || !manufacturerId || !modelId || !calibreId || !firearmTypeId || !sightTypeId) {
+    if (!session?.user?.id || !manufacturerId || !modelId || !calibreId || !firearmTypeId || !sightTypeId) {
       setError('Please fill in all required fields');
       return;
     }
@@ -80,25 +72,31 @@ export default function AddFirearmPage() {
     setSaving(true);
     setError(null);
 
-    const { error: saveError } = await supabase.from('user_firearms').insert({
-      user_id: user.id,
-      manufacturer_id: manufacturerId,
-      model_id: modelId,
-      calibre_id: calibreId,
-      firearm_type_id: firearmTypeId,
-      sight_type_id: sightTypeId,
-      barrel_length: barrelLength ? parseFloat(barrelLength) : null,
-      nickname: nickname || null,
-      notes: notes || null,
-    });
+    try {
+      const manufacturer = manufacturers.find(m => m.id === manufacturerId)?.label || '';
+      const model = models.find(m => m.id === modelId)?.label || '';
+      const calibre = calibres.find(c => c.id === calibreId)?.label || '';
+      const firearmType = firearmTypes.find(f => f.id === firearmTypeId)?.label || '';
+      const sightType = sightTypes.find(s => s.id === sightTypeId)?.label || '';
 
-    if (saveError) {
-      setError(saveError.message);
+      const { createUserFirearm } = await import('@/lib/turso/queries');
+      await createUserFirearm({
+        user_id: session.user.id,
+        manufacturer,
+        model,
+        firearm_type: firearmType,
+        calibre,
+        sight_type: sightType,
+        barrel_length: barrelLength ? parseFloat(barrelLength) : null,
+        nickname: nickname || null,
+        notes: notes || null,
+      });
+
+      router.push('/firearms');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save firearm');
       setSaving(false);
-      return;
     }
-
-    router.push('/firearms');
   };
 
   return (

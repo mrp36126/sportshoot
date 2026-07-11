@@ -2,49 +2,72 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { Crosshair, Plus, Pencil, Trash2 } from 'lucide-react';
-import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui/button';
-import { getUserFirearms } from '@/lib/supabase/queries';
-import { createClient } from '@/lib/supabase/client';
-import type { UserFirearm } from '@/types/database';
+
+interface FirearmData {
+  id: string;
+  manufacturer: string;
+  model: string;
+  firearm_type: string;
+  calibre: string;
+  sight_type: string | null;
+  barrel_length: number | null;
+  nickname: string | null;
+  notes: string | null;
+  active: number;
+  created_at: string;
+}
 
 export default function FirearmsPage() {
   const router = useRouter();
-  const { user, isLoading } = useAuthStore();
-  const [firearms, setFirearms] = useState<UserFirearm[]>([]);
+  const { data: session, status } = useSession();
+  const [firearms, setFirearms] = useState<FirearmData[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchFirearms = async () => {
+    try {
+      const res = await fetch('/api/sessions?limit=1');
+      if (res.ok) {
+        // For now, firearms list is loaded via Turso queries on the client
+        const { getUserFirearms } = await import('@/lib/turso/queries');
+        const data = await getUserFirearms(session!.user!.id as string);
+        setFirearms(data);
+      }
+    } catch (err) {
+      console.error('Failed to load firearms:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (!isLoading && !user) {
+    if (status === 'unauthenticated') {
       router.push('/login');
       return;
     }
 
-    if (user) {
-      getUserFirearms(user.id)
-        .then(setFirearms)
-        .catch(console.error)
-        .finally(() => setLoading(false));
+    if (status === 'authenticated') {
+      fetchFirearms();
     }
-  }, [user, isLoading, router]);
+  }, [status, router]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this firearm?')) return;
 
-    const supabase = createClient();
-    const { error } = await supabase
-      .from('user_firearms')
-      .update({ active: false })
-      .eq('id', id);
-
-    if (!error) {
-      setFirearms((prev) => prev.filter((f) => f.id !== id));
+    try {
+      const res = await fetch(`/api/firearms/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setFirearms((prev) => prev.filter((f) => f.id !== id));
+      }
+    } catch (err) {
+      console.error('Failed to delete firearm:', err);
     }
   };
 
-  if (isLoading || loading) {
+  if (status === 'loading' || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
@@ -101,11 +124,11 @@ export default function FirearmsPage() {
                   </div>
                   <div>
                     <h3 className="font-medium text-gray-900 dark:text-gray-100">
-                      {firearm.manufacturer_name} {firearm.model_name}
+                      {firearm.manufacturer} {firearm.model}
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {firearm.calibre_name} · {firearm.firearm_type_name} ·{' '}
-                      {firearm.sight_type_name}
+                      {firearm.calibre} · {firearm.firearm_type}
+                      {firearm.sight_type ? ` · ${firearm.sight_type}` : ''}
                     </p>
                     {firearm.nickname && (
                       <p className="mt-1 text-sm italic text-gray-500 dark:text-gray-400">
@@ -120,12 +143,6 @@ export default function FirearmsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Link
-                    href={`/firearms/${firearm.id}/edit`}
-                    className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Link>
                   <button
                     onClick={() => handleDelete(firearm.id)}
                     className="rounded-md p-2 text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"

@@ -2,53 +2,57 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { Trophy, Medal, Target } from 'lucide-react';
-import { useAuthStore } from '@/stores/auth-store';
-import { getLeaderboard } from '@/lib/supabase/queries';
-import { createClient } from '@/lib/supabase/client';
-import type { Leaderboard } from '@/types/database';
 
-type TabType = 'global' | 'distance' | 'firearm';
+interface LeaderboardEntry {
+  user_id: string;
+  display_name: string;
+  final_score: number;
+  raw_target_score: number;
+  total_sessions: number;
+  rank: number;
+}
+
+type Period = 'today' | 'weekly' | 'monthly' | 'yearly' | 'all_time';
 
 export default function LeaderboardPage() {
   const router = useRouter();
-  const { user, isLoading } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<TabType>('global');
-  const [leaderboard, setLeaderboard] = useState<Leaderboard[]>([]);
+  const { data: session, status } = useSession();
+  const [activePeriod, setActivePeriod] = useState<Period>('all_time');
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+
+  const loadLeaderboard = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/leaderboard?period=${activePeriod}&limit=50`);
+      if (res.ok) {
+        const data = await res.json();
+        setEntries(data.entries);
+      }
+    } catch (err) {
+      console.error('Failed to load leaderboard:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!isLoading && !user) {
+    if (status === 'unauthenticated') {
       router.push('/login');
       return;
     }
 
     loadLeaderboard();
-  }, [user, isLoading, router, activeTab]);
+  }, [status, router, activePeriod]);
 
-  const loadLeaderboard = async () => {
-    setLoading(true);
-    const data = await getLeaderboard(activeTab);
-    // Enrich with profile display names
-    const enriched = await Promise.all(
-      data.map(async (entry) => {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('display_name')
-          .eq('user_id', entry.user_id)
-          .single();
-        return { ...entry, display_name: profile?.display_name || 'Unknown' };
-      })
-    );
-    setLeaderboard(enriched);
-    setLoading(false);
-  };
-
-  const tabs: { key: TabType; label: string }[] = [
-    { key: 'global', label: 'Global' },
-    { key: 'distance', label: 'By Distance' },
-    { key: 'firearm', label: 'By Firearm' },
+  const periods: { key: Period; label: string }[] = [
+    { key: 'today', label: 'Today' },
+    { key: 'weekly', label: 'Weekly' },
+    { key: 'monthly', label: 'Monthly' },
+    { key: 'yearly', label: 'Yearly' },
+    { key: 'all_time', label: 'All Time' },
   ];
 
   return (
@@ -65,32 +69,32 @@ export default function LeaderboardPage() {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Period Tabs */}
       <div className="flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
-        {tabs.map((tab) => (
+        {periods.map((period) => (
           <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            key={period.key}
+            onClick={() => setActivePeriod(period.key)}
             className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === tab.key
+              activePeriod === period.key
                 ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
                 : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
             }`}
           >
-            {tab.label}
+            {period.label}
           </button>
         ))}
       </div>
 
       {/* Leaderboard */}
       <div className="space-y-2">
-        {leaderboard.map((entry, index) => {
+        {entries.map((entry, index) => {
           const rank = entry.rank ?? index + 1;
-          const isCurrentUser = entry.user_id === user?.id;
+          const isCurrentUser = entry.user_id === session?.user?.id;
 
           return (
             <div
-              key={entry.id}
+              key={entry.user_id}
               className={`rounded-lg border px-4 py-3 transition-colors ${
                 isCurrentUser
                   ? 'border-blue-200 bg-blue-50 dark:border-blue-700 dark:bg-blue-900/10'
@@ -116,33 +120,31 @@ export default function LeaderboardPage() {
                 {/* User info */}
                 <div className="flex-1">
                   <p className="font-medium text-gray-900 dark:text-gray-100">
-                    {(entry as unknown as { display_name: string }).display_name}
+                    {entry.display_name}
                     {isCurrentUser && (
                       <span className="ml-2 text-xs text-blue-600">(You)</span>
                     )}
                   </p>
                   <p className="text-sm text-gray-500">
-                    {entry.total_sessions} sessions · {entry.total_shots} shots
+                    {entry.total_sessions} sessions
                   </p>
                 </div>
 
                 {/* Score */}
                 <div className="text-right">
                   <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                    {entry.score}
+                    {entry.final_score}
                   </p>
-                  {entry.accuracy && (
-                    <p className="text-xs text-gray-500">
-                      {Math.round(entry.accuracy)}% accuracy
-                    </p>
-                  )}
+                  <p className="text-xs text-gray-500">
+                    Best: {entry.raw_target_score}
+                  </p>
                 </div>
               </div>
             </div>
           );
         })}
 
-        {leaderboard.length === 0 && !loading && (
+        {entries.length === 0 && !loading && (
           <div className="rounded-lg border-2 border-dashed border-gray-300 p-12 text-center dark:border-gray-600">
             <Target className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">

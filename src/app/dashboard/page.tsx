@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import {
   Target,
   Crosshair,
@@ -12,42 +13,61 @@ import {
   Plus,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useAuthStore } from '@/stores/auth-store';
 import { StatCard } from '@/components/shared/stat-card';
 import { SessionCard } from '@/components/shared/session-card';
 import { Button } from '@/components/ui/button';
-import {
-  getUserStatistics,
-  getUserSessions,
-  getPersonalBests,
-} from '@/lib/supabase/queries';
-import type { UserStatistic, Session, PersonalBest } from '@/types/database';
+
+interface SessionData {
+  id: string;
+  shooting_range_name: string | null;
+  shooting_distance: number;
+  number_of_shots: number;
+  raw_target_score: number | null;
+  final_score: number | null;
+  group_size_mm: number | null;
+  created_at: string;
+  status: string;
+}
+
+interface StatsData {
+  total_sessions: number;
+  total_shots: number;
+  average_final_score: number | null;
+  average_raw_score: number | null;
+  personal_best: number | null;
+  best_group_size: number | null;
+  current_ranking: number | null;
+}
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, isLoading } = useAuthStore();
-  const [stats, setStats] = useState<UserStatistic | null>(null);
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [bests, setBests] = useState<PersonalBest[]>([]);
+  const { data: session, status } = useSession();
+  const [stats, setStats] = useState<StatsData | null>(null);
+  const [sessions, setSessions] = useState<SessionData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isLoading && !user) {
+    if (status === 'unauthenticated') {
       router.push('/login');
       return;
     }
 
-    if (user) {
+    if (status === 'authenticated') {
       const loadData = async () => {
         try {
-          const [userStats, userSessions, personalBests] = await Promise.all([
-            getUserStatistics(user.id),
-            getUserSessions(user.id),
-            getPersonalBests(user.id),
+          const [statsRes, sessionsRes] = await Promise.all([
+            fetch('/api/statistics'),
+            fetch('/api/sessions?limit=10'),
           ]);
-          setStats(userStats);
-          setSessions(userSessions);
-          setBests(personalBests);
+
+          if (statsRes.ok) {
+            const statsData = await statsRes.json();
+            setStats(statsData.stats);
+          }
+          if (sessionsRes.ok) {
+            const sessionsData = await sessionsRes.json();
+            setSessions(sessionsData.sessions);
+          }
         } catch (err) {
           console.error('Failed to load dashboard data:', err);
         } finally {
@@ -56,9 +76,9 @@ export default function DashboardPage() {
       };
       loadData();
     }
-  }, [user, isLoading, router]);
+  }, [status, router]);
 
-  if (isLoading || loading) {
+  if (status === 'loading' || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
@@ -100,50 +120,33 @@ export default function DashboardPage() {
         />
         <StatCard
           icon={<TrendingUp className="h-5 w-5" />}
-          label="Accuracy"
+          label="Avg Final Score"
           value={
-            stats?.current_accuracy
-              ? `${Math.round(stats.current_accuracy)}%`
+            stats?.average_final_score
+              ? Math.round(stats.average_final_score).toString()
               : '—'
           }
         />
         <StatCard
           icon={<Trophy className="h-5 w-5" />}
           label="Best Score"
-          value={stats?.personal_best_score ?? '—'}
+          value={stats?.personal_best?.toString() ?? '—'}
         />
       </div>
 
-      {/* Personal Bests */}
-      {bests.length > 0 && (
-        <div>
-          <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Personal Bests
-          </h2>
-          <div className="space-y-2">
-            {bests.slice(0, 5).map((best) => (
-              <div
-                key={best.id}
-                className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800"
-              >
-                <div className="flex items-center gap-3">
-                  <Medal className="h-5 w-5 text-yellow-500" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 capitalize">
-                      {best.category}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Score: {best.score}
-                      {best.accuracy && ` · ${Math.round(best.accuracy)}%`}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 text-xs text-gray-400">
-                  <Clock className="h-3 w-3" />
-                  {new Date(best.achieved_at).toLocaleDateString()}
-                </div>
-              </div>
-            ))}
+      {/* Ranking */}
+      {stats?.current_ranking && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-700 dark:bg-blue-900/10">
+          <div className="flex items-center gap-3">
+            <Medal className="h-6 w-6 text-blue-600" />
+            <div>
+              <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                Current Ranking
+              </p>
+              <p className="text-2xl font-bold text-blue-600">
+                #{stats.current_ranking}
+              </p>
+            </div>
           </div>
         </div>
       )}
@@ -156,7 +159,7 @@ export default function DashboardPage() {
           </h2>
           {sessions.length > 0 && (
             <Link
-              href="/sessions"
+              href="/progress"
               className="text-sm text-blue-600 hover:text-blue-500 dark:text-blue-400"
             >
               View all
@@ -185,7 +188,16 @@ export default function DashboardPage() {
             {sessions.map((session) => (
               <SessionCard
                 key={session.id}
-                session={session}
+                session={{
+                  id: session.id,
+                  shooting_range_name: session.shooting_range_name,
+                  shooting_distance: session.shooting_distance,
+                  number_of_shots: session.number_of_shots,
+                  total_score: session.final_score,
+                  group_size_mm: session.group_size_mm,
+                  created_at: session.created_at,
+                  status: session.status,
+                }}
                 onClick={() => router.push(`/sessions/${session.id}`)}
               />
             ))}

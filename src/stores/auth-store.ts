@@ -1,32 +1,22 @@
 import { create } from 'zustand';
-import type { User } from '@supabase/supabase-js';
-import type { Profile } from '@/types/database';
+import type { Session } from 'next-auth';
 
 interface AuthState {
-  user: User | null;
-  profile: Profile | null;
+  user: Session['user'] | null;
   isLoading: boolean;
-  isAdmin: boolean;
-  setUser: (user: User | null) => void;
-  setProfile: (profile: Profile | null) => void;
+  setUser: (user: Session['user'] | null) => void;
   setLoading: (loading: boolean) => void;
   reset: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  profile: null,
   isLoading: true,
-  isAdmin: false,
   setUser: (user) => set({ user, isLoading: false }),
-  setProfile: (profile) =>
-    set({ profile, isAdmin: profile?.role === 'admin' }),
   setLoading: (isLoading) => set({ isLoading }),
   reset: () =>
     set({
       user: null,
-      profile: null,
       isLoading: false,
-      isAdmin: false,
     }),
 }));

@@ -1,19 +1,32 @@
 import { MapPin, Crosshair, Target, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
-import type { Session } from '@/types/database';
+
+interface SessionCardData {
+  id: string;
+  shooting_range_name?: string | null;
+  shooting_distance?: number;
+  number_of_shots?: number;
+  total_score?: number | null;
+  final_score?: number | null;
+  group_size_mm?: number | null;
+  accuracy?: number | null;
+  created_at: string;
+  shot_datetime?: string | null;
+  status: string;
+  annotated_image_url?: string | null;
+  manufacturer_name?: string;
+  model_name?: string;
+  calibre_name?: string;
+  distance_label?: string;
+}
 
 interface SessionCardProps {
-  session: Session;
+  session: SessionCardData;
   onClick?: () => void;
 }
 
 export function SessionCard({ session, onClick }: SessionCardProps) {
-  const firearmDisplay = [
-    session.manufacturer_name,
-    session.model_name,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const score = session.final_score ?? session.total_score;
 
   return (
     <div
@@ -29,9 +42,9 @@ export function SessionCard({ session, onClick }: SessionCardProps) {
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
             <Crosshair className="h-4 w-4 text-gray-400" />
             <span>
-              {firearmDisplay || 'Unknown Firearm'}
+              {[session.manufacturer_name, session.model_name].filter(Boolean).join(' ') || 'Unknown Firearm'}
               {session.calibre_name ? ` · ${session.calibre_name}` : ''}
-              {session.distance_label ? ` · ${session.distance_label}` : ''}
+              {session.shooting_distance ? ` · ${session.shooting_distance}m` : ''}
             </span>
           </div>
         </div>
@@ -50,23 +63,25 @@ export function SessionCard({ session, onClick }: SessionCardProps) {
         <div className="flex items-center gap-2">
           <Target
             className={`h-5 w-5 ${
-              session.total_score && session.total_score >= 90
+              score && score >= 90
                 ? 'text-green-500'
-                : session.total_score && session.total_score >= 70
+                : score && score >= 70
                   ? 'text-blue-500'
                   : 'text-gray-400'
             }`}
           />
           <div>
             <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
-              {session.total_score ?? '—'}
-            </span>
-            <span className="text-sm text-gray-500">
-              /100
+              {score ?? '—'}
             </span>
             {session.accuracy && (
               <span className="ml-2 text-sm text-gray-500">
                 · {Math.round(session.accuracy)}%
+              </span>
+            )}
+            {session.group_size_mm && (
+              <span className="ml-2 text-sm text-gray-500">
+                · {Math.round(session.group_size_mm)}mm
               </span>
             )}
           </div>

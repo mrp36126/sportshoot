@@ -4,12 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Target, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { signIn } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -23,38 +22,30 @@ export default function RegisterPage() {
     setError(null);
     setLoading(true);
 
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          display_name: displayName,
-        },
-      },
-    });
-
-    if (signUpError) {
-      setError(signUpError.message);
-      setLoading(false);
-      return;
-    }
-
-    if (data.user) {
-      // Create profile
-      const { error: profileError } = await supabase.from('profiles').insert({
-        user_id: data.user.id,
-        display_name: displayName,
-        role: 'user',
+    try {
+      // Sign in with displayName to trigger registration flow
+      const result = await signIn('credentials', {
+        email,
+        password,
+        displayName,
+        redirect: false,
       });
 
-      if (profileError) {
-        setError(profileError.message);
+      if (result?.error) {
+        setError(result.error === 'CredentialsSignin'
+          ? 'An account with this email may already exist'
+          : 'Registration failed. Please try again.'
+        );
         setLoading(false);
         return;
       }
-    }
 
-    router.push('/login?registered=true');
+      router.push('/dashboard');
+      router.refresh();
+    } catch (err) {
+      setError('An unexpected error occurred');
+      setLoading(false);
+    }
   };
 
   return (

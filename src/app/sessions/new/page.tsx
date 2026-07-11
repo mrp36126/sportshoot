@@ -2,51 +2,33 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/stores/auth-store';
+import { useSession } from 'next-auth/react';
 import { useSessionWizardStore } from '@/stores/session-wizard-store';
 import { Button } from '@/components/ui/button';
 import { WizardLayout } from '@/components/shared/wizard-layout';
 import { SearchableSelect, type SelectOption } from '@/components/shared/searchable-select';
 import { NumericInput } from '@/components/shared/numeric-input';
 import { CameraCapture } from '@/components/shared/camera-capture';
-import { createClient } from '@/lib/supabase/client';
-import {
-  getActiveRanges,
-  getManufacturers,
-  getModelsByManufacturer,
-  getCalibres,
-  getFirearmTypes,
-  getSightTypes,
-  getTargetTypes,
-  getDistances,
-  getUserFirearms,
-  createSession,
-  updateSession,
-  saveShots,
-} from '@/lib/supabase/queries';
-import type { UserFirearm } from '@/types/database';
 
 const TOTAL_STEPS = 12;
 
-function WizardStep1_SelectRange({
-  onNext,
-}: {
-  onNext: () => void;
-}) {
+function WizardStep1_SelectRange({ onNext }: { onNext: () => void }) {
   const { shootingRangeId, setShootingRangeId } = useSessionWizardStore();
   const [ranges, setRanges] = useState<SelectOption[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getActiveRanges().then((data) => {
-      setRanges(
-        data.map((r) => ({
-          id: r.id,
-          label: r.name,
-          subtitle: `${r.city}, ${r.country}`,
-        }))
-      );
-      setLoading(false);
+    import('@/lib/turso/queries').then(({ getActiveRanges }) => {
+      getActiveRanges().then((data) => {
+        setRanges(
+          data.map((r) => ({
+            id: r.id,
+            label: r.name,
+            subtitle: `${r.city}, ${r.country}`,
+          }))
+        );
+        setLoading(false);
+      });
     });
   }, []);
 
@@ -56,11 +38,7 @@ function WizardStep1_SelectRange({
       step={1}
       totalSteps={TOTAL_STEPS}
       footer={
-        <Button
-          className="w-full"
-          disabled={!shootingRangeId || loading}
-          onClick={onNext}
-        >
+        <Button className="w-full" disabled={!shootingRangeId || loading} onClick={onNext}>
           Next
         </Button>
       }
@@ -76,40 +54,35 @@ function WizardStep1_SelectRange({
           placeholder="Search shooting ranges..."
           searchPlaceholder="Type to search ranges..."
           emptyMessage="No ranges found"
-          onRequestNew={() => alert('Request sent to admin')}
-          requestNewLabel="Request admin to add a new range"
         />
       </div>
     </WizardLayout>
   );
 }
 
-function WizardStep2_SelectFirearm({
-  onNext,
-  onBack,
-}: {
-  onNext: () => void;
-  onBack: () => void;
-}) {
-  const { user } = useAuthStore();
+function WizardStep2_SelectFirearm({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+  const { data: session } = useSession();
   const { firearmId, setFirearmId } = useSessionWizardStore();
   const [firearms, setFirearms] = useState<SelectOption[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user) {
-      getUserFirearms(user.id).then((data) => {
-        setFirearms(
-          data.map((f: UserFirearm) => ({
-            id: f.id,
-            label: `${f.manufacturer_name} ${f.model_name}`,
-            subtitle: `${f.calibre_name} · ${f.nickname || ''}`.trim(),
-          }))
-        );
-        setLoading(false);
+    const userId = session?.user?.id;
+    if (userId) {
+      import('@/lib/turso/queries').then(({ getUserFirearms }) => {
+        getUserFirearms(userId as string).then((data) => {
+          setFirearms(
+            data.map((f) => ({
+              id: f.id,
+              label: `${f.manufacturer} ${f.model}`,
+              subtitle: `${f.calibre} · ${f.nickname || ''}`.trim(),
+            }))
+          );
+          setLoading(false);
+        });
       });
     }
-  }, [user]);
+  }, [session]);
 
   return (
     <WizardLayout
@@ -119,11 +92,7 @@ function WizardStep2_SelectFirearm({
       onBack={onBack}
       canGoBack={true}
       footer={
-        <Button
-          className="w-full"
-          disabled={!firearmId || loading}
-          onClick={onNext}
-        >
+        <Button className="w-full" disabled={!firearmId || loading} onClick={onNext}>
           Next
         </Button>
       }
@@ -145,26 +114,25 @@ function WizardStep2_SelectFirearm({
   );
 }
 
-function WizardStep3_SelectDistance({
-  onNext,
-  onBack,
-}: {
-  onNext: () => void;
-  onBack: () => void;
-}) {
+function WizardStep3_SelectDistance({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   const { distanceId, setDistanceId } = useSessionWizardStore();
   const [distances, setDistances] = useState<SelectOption[]>([]);
 
   useEffect(() => {
-    getDistances().then((data) => {
-      setDistances(
-        data.map((d) => ({
-          id: d.id,
-          label: d.label,
-          subtitle: `${d.value_meters}m`,
-        }))
-      );
-    });
+    // Provide common shooting distances as options
+    const commonDistances = [
+      { id: '5', label: '5 metres', subtitle: 'Close range' },
+      { id: '7', label: '7 metres', subtitle: 'Standard pistol' },
+      { id: '10', label: '10 metres', subtitle: 'Air pistol/rifle' },
+      { id: '12', label: '12 metres', subtitle: 'Sport pistol' },
+      { id: '15', label: '15 metres', subtitle: 'Medium range' },
+      { id: '20', label: '20 metres', subtitle: 'Practical pistol' },
+      { id: '25', label: '25 metres', subtitle: 'Standard pistol' },
+      { id: '30', label: '30 metres', subtitle: 'Long pistol' },
+      { id: '40', label: '40 metres', subtitle: 'Rifle' },
+      { id: '50', label: '50 metres', subtitle: 'Rifle standard' },
+    ];
+    setDistances(commonDistances);
   }, []);
 
   return (
@@ -175,11 +143,7 @@ function WizardStep3_SelectDistance({
       onBack={onBack}
       canGoBack={true}
       footer={
-        <Button
-          className="w-full"
-          disabled={!distanceId}
-          onClick={onNext}
-        >
+        <Button className="w-full" disabled={!distanceId} onClick={onNext}>
           Next
         </Button>
       }
@@ -200,25 +164,21 @@ function WizardStep3_SelectDistance({
   );
 }
 
-function WizardStep4_SelectTarget({
-  onNext,
-  onBack,
-}: {
-  onNext: () => void;
-  onBack: () => void;
-}) {
+function WizardStep4_SelectTarget({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   const { targetTypeId, setTargetTypeId } = useSessionWizardStore();
   const [targets, setTargets] = useState<SelectOption[]>([]);
 
   useEffect(() => {
-    getTargetTypes().then((data) => {
-      setTargets(
-        data.map((t) => ({
-          id: t.id,
-          label: t.name,
-          subtitle: `Max score: ${t.max_score}`,
-        }))
-      );
+    import('@/lib/turso/queries').then(({ getTargetTypes }) => {
+      getTargetTypes().then((data) => {
+        setTargets(
+          data.map((t) => ({
+            id: t.id,
+            label: t.name,
+            subtitle: `Max score: ${t.max_score}`,
+          }))
+        );
+      });
     });
   }, []);
 
@@ -230,11 +190,7 @@ function WizardStep4_SelectTarget({
       onBack={onBack}
       canGoBack={true}
       footer={
-        <Button
-          className="w-full"
-          disabled={!targetTypeId}
-          onClick={onNext}
-        >
+        <Button className="w-full" disabled={!targetTypeId} onClick={onNext}>
           Next
         </Button>
       }
@@ -255,13 +211,7 @@ function WizardStep4_SelectTarget({
   );
 }
 
-function WizardStep5_ExpectedShots({
-  onNext,
-  onBack,
-}: {
-  onNext: () => void;
-  onBack: () => void;
-}) {
+function WizardStep5_ExpectedShots({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   const { expectedShots, setExpectedShots } = useSessionWizardStore();
 
   return (
@@ -272,11 +222,7 @@ function WizardStep5_ExpectedShots({
       onBack={onBack}
       canGoBack={true}
       footer={
-        <Button
-          className="w-full"
-          disabled={!expectedShots || expectedShots <= 0}
-          onClick={onNext}
-        >
+        <Button className="w-full" disabled={!expectedShots || expectedShots <= 0} onClick={onNext}>
           Next
         </Button>
       }
@@ -300,35 +246,19 @@ function WizardStep5_ExpectedShots({
   );
 }
 
-function WizardStep6_CaptureBefore({
-  onNext,
-  onBack,
-}: {
-  onNext: () => void;
-  onBack: () => void;
-}) {
+function WizardStep6_CaptureBefore({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   const { setBeforeImageUrl } = useSessionWizardStore();
 
   const handleCapture = useCallback(
     async (file: File, previewUrl: string) => {
-      // Upload to Supabase Storage
-      const supabase = createClient();
-      const fileName = `before-${Date.now()}.jpg`;
-      const { data } = await supabase.storage
-        .from('targets')
-        .upload(`before/${fileName}`, file);
-
-      if (data) {
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from('targets').getPublicUrl(data.path);
-        setBeforeImageUrl(publicUrl);
-      } else {
-        // Fallback to local preview
-        setBeforeImageUrl(previewUrl);
-      }
-
-      onNext();
+      // Convert to base64 for GitHub upload
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        setBeforeImageUrl(base64);
+        onNext();
+      };
+      reader.readAsDataURL(file);
     },
     [setBeforeImageUrl, onNext]
   );
@@ -342,6 +272,11 @@ function WizardStep6_CaptureBefore({
       canGoBack={true}
     >
       <div className="space-y-4">
+        <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-4 text-center dark:border-blue-700 dark:bg-blue-900/20">
+          <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+            Stand approximately 2 metres from the target before taking the photo.
+          </p>
+        </div>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Capture a photo of your clean target before shooting.
         </p>
@@ -354,13 +289,7 @@ function WizardStep6_CaptureBefore({
   );
 }
 
-function WizardStep7_Shooting({
-  onNext,
-  onBack,
-}: {
-  onNext: () => void;
-  onBack: () => void;
-}) {
+function WizardStep7_Shooting({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   const { expectedShots } = useSessionWizardStore();
 
   return (
@@ -378,9 +307,7 @@ function WizardStep7_Shooting({
     >
       <div className="space-y-6 py-8 text-center">
         <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/20">
-          <span className="text-4xl font-bold text-blue-600">
-            {expectedShots}
-          </span>
+          <span className="text-4xl font-bold text-blue-600">{expectedShots}</span>
         </div>
         <div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
@@ -397,33 +324,18 @@ function WizardStep7_Shooting({
   );
 }
 
-function WizardStep8_CaptureAfter({
-  onNext,
-  onBack,
-}: {
-  onNext: () => void;
-  onBack: () => void;
-}) {
+function WizardStep8_CaptureAfter({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   const { setAfterImageUrl, beforeImageUrl } = useSessionWizardStore();
 
   const handleCapture = useCallback(
     async (file: File, previewUrl: string) => {
-      const supabase = createClient();
-      const fileName = `after-${Date.now()}.jpg`;
-      const { data } = await supabase.storage
-        .from('targets')
-        .upload(`after/${fileName}`, file);
-
-      if (data) {
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from('targets').getPublicUrl(data.path);
-        setAfterImageUrl(publicUrl);
-      } else {
-        setAfterImageUrl(previewUrl);
-      }
-
-      onNext();
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        setAfterImageUrl(base64);
+        onNext();
+      };
+      reader.readAsDataURL(file);
     },
     [setAfterImageUrl, onNext]
   );
@@ -437,6 +349,11 @@ function WizardStep8_CaptureAfter({
       canGoBack={true}
     >
       <div className="space-y-4">
+        <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-4 text-center dark:border-blue-700 dark:bg-blue-900/20">
+          <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+            Stand approximately 2 metres from the target before taking the photo.
+          </p>
+        </div>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Capture a photo of your completed target.
         </p>
@@ -451,11 +368,7 @@ function WizardStep8_CaptureAfter({
   );
 }
 
-function WizardStep9_Processing({
-  onNext,
-}: {
-  onNext: () => void;
-}) {
+function WizardStep9_Processing({ onNext }: { onNext: () => void }) {
   const { setIsProcessing, setProcessingResults, expectedShots } = useSessionWizardStore();
   const [progress, setProgress] = useState('');
   const [step, setStep] = useState(0);
@@ -478,7 +391,7 @@ function WizardStep9_Processing({
         await new Promise((r) => setTimeout(r, 800 + Math.random() * 400));
       }
 
-      // Mock processing results (will be replaced with actual OpenCV.js)
+      // Mock processing results (will be replaced with actual image analysis)
       const mockShots = Array.from({ length: expectedShots ?? 10 }, (_, i) => ({
         shotNumber: i + 1,
         xCoordinate: (Math.random() - 0.5) * 60,
@@ -488,14 +401,23 @@ function WizardStep9_Processing({
       }));
 
       const totalScore = mockShots.reduce((sum, s) => sum + s.ringScore, 0);
-      const maxScore = (expectedShots ?? 10) * 10;
-      const accuracy = (totalScore / maxScore) * 100;
+
+      // Calculate group size (max distance between any two shots)
+      let maxDistance = 0;
+      for (let i = 0; i < mockShots.length; i++) {
+        for (let j = i + 1; j < mockShots.length; j++) {
+          const dx = mockShots[i].xCoordinate - mockShots[j].xCoordinate;
+          const dy = mockShots[i].yCoordinate - mockShots[j].yCoordinate;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist > maxDistance) maxDistance = dist;
+        }
+      }
 
       setProcessingResults({
         detectedShots: mockShots.length,
         totalScore,
-        accuracy,
-        groupSize: Math.random() * 50 + 20,
+        accuracy: (totalScore / ((expectedShots ?? 10) * 10)) * 100,
+        groupSize: maxDistance + 20,
         shots: mockShots,
       });
 
@@ -504,7 +426,7 @@ function WizardStep9_Processing({
     };
 
     runProcessing();
-  }, [expectedShots, setIsProcessing, setProcessingResults, onNext, steps]);
+  }, [expectedShots, setIsProcessing, setProcessingResults, onNext]);
 
   return (
     <WizardLayout title="Processing Target..." step={9} totalSteps={TOTAL_STEPS}>
@@ -533,20 +455,8 @@ function WizardStep9_Processing({
   );
 }
 
-function WizardStep10_Validation({
-  onNext,
-  onBack,
-}: {
-  onNext: () => void;
-  onBack: () => void;
-}) {
-  const {
-    expectedShots,
-    detectedShots,
-    setMismatchDetected,
-    mismatchDetected,
-    setStep,
-  } = useSessionWizardStore();
+function WizardStep10_Validation({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+  const { expectedShots, detectedShots, setMismatchDetected, mismatchDetected, setStep } = useSessionWizardStore();
 
   useEffect(() => {
     if (expectedShots !== detectedShots) {
@@ -597,23 +507,15 @@ function WizardStep10_Validation({
             </p>
             <div className="mt-4 flex justify-center gap-8">
               <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {expectedShots}
-                </p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{expectedShots}</p>
                 <p className="text-sm text-gray-500">Expected</p>
               </div>
               <div className="text-2xl text-gray-300">vs</div>
               <div>
-                <p className="text-2xl font-bold text-amber-600">
-                  {detectedShots}
-                </p>
+                <p className="text-2xl font-bold text-amber-600">{detectedShots}</p>
                 <p className="text-sm text-gray-500">Detected</p>
               </div>
             </div>
-            <p className="mt-4 text-sm text-amber-700 dark:text-amber-300">
-              The number of detected shots doesn't match. You can
-              reprocess the image or accept the detected results.
-            </p>
           </div>
         ) : (
           <div className="rounded-lg border-2 border-green-300 bg-green-50 p-6 text-center dark:border-green-700 dark:bg-green-900/20">
@@ -630,68 +532,69 @@ function WizardStep10_Validation({
   );
 }
 
-function WizardStep11_Review({
-  onNext,
-  onBack,
-}: {
-  onNext: () => void;
-  onBack: () => void;
-}) {
+function WizardStep11_Review({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   const store = useSessionWizardStore();
-  const { user } = useAuthStore();
+  const { data: session } = useSession();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const router = useRouter();
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!session?.user?.id) return;
     setSaving(true);
     setSaveError(null);
 
     try {
-      const { data: session, error: sessionError } = await createSession({
-        user_id: user.id,
-        shooting_range_id: store.shootingRangeId!,
-        firearm_id: store.firearmId!,
-        distance_id: store.distanceId!,
-        target_type_id: store.targetTypeId!,
-        expected_shots: store.expectedShots!,
-        detected_shots: store.detectedShots,
-        total_score: store.totalScore,
-        average_score: store.totalScore && store.detectedShots ? Math.round(store.totalScore / store.detectedShots) : null,
-        accuracy: store.accuracy,
-        group_size_mm: store.groupSize,
-        before_image_url: store.beforeImageUrl,
-        after_image_url: store.afterImageUrl,
-        annotated_image_url: store.annotatedImageUrl,
-        status: 'completed',
-        shot_datetime: new Date().toISOString(),
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        notes: null,
+      // Upload images to GitHub first
+      let beforeImageUrl = store.beforeImageUrl;
+      let afterImageUrl = store.afterImageUrl;
+
+      if (beforeImageUrl && afterImageUrl) {
+        try {
+          const uploadRes = await fetch('/api/github/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              beforeImage: beforeImageUrl,
+              afterImage: afterImageUrl,
+            }),
+          });
+          if (uploadRes.ok) {
+            const urls = await uploadRes.json();
+            beforeImageUrl = urls.beforeUrl;
+            afterImageUrl = urls.afterUrl;
+          }
+        } catch (err) {
+          console.error('GitHub upload failed, saving with local URLs:', err);
+        }
+      }
+
+      // Save session
+      const sessionRes = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shooting_range_id: store.shootingRangeId,
+          firearm_id: store.firearmId,
+          calibre: store.shots[0]?.ringScore.toString() || '',
+          shooting_distance: parseFloat(store.distanceId || '10'),
+          number_of_shots: store.expectedShots,
+          raw_target_score: store.totalScore,
+          group_size_mm: store.groupSize,
+          before_image_url: beforeImageUrl,
+          after_image_url: afterImageUrl,
+          shot_datetime: new Date().toISOString(),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
       });
 
-      if (sessionError || !session) {
-        throw new Error(sessionError?.message || 'Failed to create session');
+      if (!sessionRes.ok) {
+        const errorData = await sessionRes.json();
+        throw new Error(errorData.error || 'Failed to save session');
       }
 
-      // Save shots
-      const { error: shotsError } = await saveShots(
-        store.shots.map((s) => ({
-          session_id: session.id,
-          shot_number: s.shotNumber,
-          x_coordinate: s.xCoordinate,
-          y_coordinate: s.yCoordinate,
-          ring_score: s.ringScore,
-          is_x_ring: s.isXRing,
-          is_detected: true,
-        }))
-      );
-
-      if (shotsError) {
-        console.error('Failed to save shots:', shotsError);
-      }
-
-      store.setSessionId(session.id);
+      const { session: savedSession } = await sessionRes.json();
+      store.setSessionId(savedSession.id);
       onNext();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Failed to save session');
@@ -707,11 +610,7 @@ function WizardStep11_Review({
       onBack={onBack}
       canGoBack={true}
       footer={
-        <Button
-          className="w-full"
-          onClick={handleSave}
-          disabled={saving}
-        >
+        <Button className="w-full" onClick={handleSave} disabled={saving}>
           {saving ? 'Saving...' : 'Save Session'}
         </Button>
       }
@@ -719,27 +618,22 @@ function WizardStep11_Review({
       <div className="space-y-4">
         {/* Session Summary */}
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
-          <h3 className="mb-2 text-sm font-semibold text-gray-500 uppercase">
-            Session Summary
-          </h3>
+          <h3 className="mb-2 text-sm font-semibold text-gray-500 uppercase">Session Summary</h3>
           <div className="space-y-1 text-sm">
             <p><span className="text-gray-500">Range:</span> Range selected</p>
             <p><span className="text-gray-500">Firearm:</span> Firearm selected</p>
+            <p><span className="text-gray-500">Distance:</span> {store.distanceId}m</p>
             <p><span className="text-gray-500">Shots:</span> {store.expectedShots} expected / {store.detectedShots} detected</p>
           </div>
         </div>
 
         {/* Results */}
         <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-          <h3 className="mb-3 text-sm font-semibold text-gray-500 uppercase">
-            Results
-          </h3>
+          <h3 className="mb-3 text-sm font-semibold text-gray-500 uppercase">Results</h3>
           <div className="grid grid-cols-2 gap-4">
             <div className="text-center">
-              <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-                {store.totalScore}
-              </p>
-              <p className="text-xs text-gray-500">Total Score</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{store.totalScore}</p>
+              <p className="text-xs text-gray-500">Raw Score</p>
             </div>
             <div className="text-center">
               <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
@@ -759,37 +653,6 @@ function WizardStep11_Review({
               </p>
               <p className="text-xs text-gray-500">X-Rings</p>
             </div>
-          </div>
-        </div>
-
-        {/* Shot Breakdown */}
-        <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-          <div className="border-b border-gray-200 px-4 py-2 dark:border-gray-700">
-            <h3 className="text-sm font-semibold text-gray-500 uppercase">
-              Shot Breakdown
-            </h3>
-          </div>
-          <div className="divide-y divide-gray-100 dark:divide-gray-700">
-            {store.shots.map((shot) => (
-              <div
-                key={shot.shotNumber}
-                className="flex items-center justify-between px-4 py-2"
-              >
-                <span className="text-sm text-gray-500">
-                  Shot {shot.shotNumber}
-                </span>
-                <div className="flex items-center gap-2">
-                  {shot.isXRing && (
-                    <span className="rounded bg-yellow-100 px-1.5 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
-                      X
-                    </span>
-                  )}
-                  <span className="font-mono text-sm font-bold text-gray-900 dark:text-gray-100">
-                    {shot.ringScore}
-                  </span>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
 
@@ -815,9 +678,7 @@ function WizardStep12_Complete() {
         </div>
 
         <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-            Session Complete
-          </h2>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Session Complete</h2>
           <p className="mt-2 text-sm text-gray-500">
             Your shooting session has been saved successfully.
           </p>
@@ -826,7 +687,7 @@ function WizardStep12_Complete() {
         <div className="grid grid-cols-3 gap-4">
           <div className="rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
             <p className="text-2xl font-bold text-blue-600">{totalScore}</p>
-            <p className="text-xs text-blue-600">Score</p>
+            <p className="text-xs text-blue-600">Raw Score</p>
           </div>
           <div className="rounded-lg bg-green-50 p-4 dark:bg-green-900/20">
             <p className="text-2xl font-bold text-green-600">
@@ -843,9 +704,7 @@ function WizardStep12_Complete() {
         </div>
 
         <div className="flex flex-col gap-3 pt-4">
-          <Button onClick={() => router.push('/dashboard')}>
-            Go to Dashboard
-          </Button>
+          <Button onClick={() => router.push('/dashboard')}>Go to Dashboard</Button>
           <Button
             variant="outline"
             onClick={() => {
@@ -863,21 +722,21 @@ function WizardStep12_Complete() {
 
 export default function NewSessionPage() {
   const router = useRouter();
-  const { user, isLoading } = useAuthStore();
+  const { data: session, status } = useSession();
   const { currentStep, setStep, goBack, reset } = useSessionWizardStore();
 
   useEffect(() => {
-    if (!isLoading && !user) {
+    if (status === 'unauthenticated') {
       router.push('/login');
     }
-  }, [user, isLoading, router]);
+  }, [status, router]);
 
   // Reset the wizard on mount
   useEffect(() => {
     reset();
   }, [reset]);
 
-  if (isLoading) {
+  if (status === 'loading') {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />

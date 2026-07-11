@@ -4,14 +4,13 @@ import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Target, Mail, Lock, Eye, EyeOff } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { signIn } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/dashboard';
-  const supabase = createClient();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,19 +23,25 @@ function LoginForm() {
     setError(null);
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      });
 
-    if (error) {
-      setError(error.message);
+      if (result?.error) {
+        setError('Invalid email or password');
+        setLoading(false);
+        return;
+      }
+
+      router.push(redirectTo);
+      router.refresh();
+    } catch (err) {
+      setError('An unexpected error occurred');
       setLoading(false);
-      return;
     }
-
-    router.push(redirectTo);
-    router.refresh();
   };
 
   return (
@@ -121,15 +126,6 @@ function LoginForm() {
           </Button>
         </form>
 
-        {/* Links */}
-        <div className="text-center text-sm">
-          <Link
-            href="/forgot-password"
-            className="text-blue-600 hover:text-blue-500 dark:text-blue-400"
-          >
-            Forgot your password?
-          </Link>
-        </div>
         <div className="text-center text-sm text-gray-500 dark:text-gray-400">
           Don't have an account?{' '}
           <Link
