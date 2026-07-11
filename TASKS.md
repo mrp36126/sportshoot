@@ -6,197 +6,111 @@
 # Phase 1
 ## Project Setup
 
-- Create GitHub Repository
-- Configure Vercel
-- Create Supabase Project
-- Configure Environment Variables
-- Install Dependencies
-- Configure Tailwind
-- Configure shadcn/ui
-- Configure ESLint
-- Configure Prettier
+- [x] Create GitHub Repository
+- [ ] Initialize Next.js with TypeScript
+- [ ] Configure Tailwind CSS
+- [ ] Configure shadcn/ui
+- [ ] Configure ESLint & Prettier
+- [ ] Set up Supabase project
+- [ ] Configure environment variables
+- [ ] Create database schema (all tables)
+- [ ] Seed master data
+- [ ] Configure RLS policies
 
 Status
 
-⬜ Not Started
+🔄 In Progress
 
 ---
 
 # Phase 2
-## Authentication
+## Authentication & Profiles
 
-- User Registration
-- Login
-- Logout
-- Password Reset
-- Email Verification
-- User Roles
-- Protected Routes
-
-Status
-
-⬜
+- [ ] User Registration
+- [ ] Login / Logout
+- [ ] Password Reset
+- [ ] Email Verification
+- [ ] User Roles (user/admin)
+- [ ] Protected Routes
+- [ ] Profile Management
+- [ ] Avatar Upload
 
 ---
 
 # Phase 3
-## User Profiles
+## Admin Master Data CRUD
 
-- Edit Profile
-- Upload Avatar
-- Country
-- Province
-- Club
-- Statistics
+- [ ] Admin Dashboard Layout
+- [ ] Shooting Ranges Management
+- [ ] Manufacturers Management
+- [ ] Firearm Models Management
+- [ ] Calibres Management
+- [ ] Target Types Management
+- [ ] Distances Management
 
 ---
 
 # Phase 4
-## Firearms
+## User Firearms
 
-- Add Firearm
-- Edit Firearm
-- Delete Firearm
-- Firearm Types
-- Calibre
-- Manufacturer
-- Notes
+- [ ] Add Firearm (with master data lookups)
+- [ ] Edit Firearm
+- [ ] Delete Firearm
+- [ ] Firearm List
+- [ ] Searchable dropdown components
 
 ---
 
 # Phase 5
-## Shooting Sessions
+## Shooting Session Wizard
 
-- New Session
-- Select Firearm
-- Select Distance
-- Select Target
-- Notes
-- Save Session
+- [ ] Session Wizard State Machine
+- [ ] Step 1-2: Auth + New Session
+- [ ] Step 3: Select Range
+- [ ] Step 4: Select Firearm
+- [ ] Step 5: Select Distance
+- [ ] Step 6: Select Target Type
+- [ ] Step 7: Expected Shots
+- [ ] Step 8: Capture Before Image
+- [ ] Step 9: [User Shoots]
+- [ ] Step 10: Capture After Image
+- [ ] Step 11: OpenCV Processing
+- [ ] Step 12: Validation
+- [ ] Step 13: Save Session
+- [ ] Step 14: Auto-update Statistics
 
 ---
 
 # Phase 6
-## Camera
+## Dashboard & Statistics
 
-- Camera Access
-- Capture Before Image
-- Capture After Image
-- Image Preview
-- Upload
+- [ ] User Dashboard
+- [ ] Stat Cards
+- [ ] Personal Bests
+- [ ] Progress Charts
+- [ ] Recent Sessions List
+- [ ] Leaderboard Display
+- [ ] Session Detail View
+- [ ] Statistics Calculations
 
 ---
 
 # Phase 7
-## OpenCV
+## Competitions & Achievements
 
-- Detect Target
-- Correct Perspective
-- Detect Bullet Holes
-- Calculate Coordinates
-- Score Shots
-- Draw Shot Markers
+- [ ] Competition Management
+- [ ] Join Competition
+- [ ] Competition Results
+- [ ] Achievement Definitions
+- [ ] Achievement Tracking
+- [ ] Achievement Display
 
 ---
 
 # Phase 8
-## Statistics
+## Admin Console
 
-- Session Stats
-- Personal Bests
-- Charts
-- Progress
-- Accuracy
-
----
-
-# Phase 9
-## Leaderboards
-
-- Distance Rankings
-- Firearm Rankings
-- Monthly Rankings
-- Weekly Rankings
-- Global Rankings
-- Club Rankings
-
----
-
-# Phase 10
-## Competitions
-
-- Create Competition
-- Join Competition
-- Live Rankings
-- Results
-
----
-
-# Phase 11
-## Admin
-
-- Dashboard
-- Users
-- Targets
-- Firearms
-- Analytics
-
----
-
-# Phase 12
-## AI Coach
-
-- Detect Shooting Patterns
-- Recommend Improvements
-- Compare Sessions
-- Skill Progression
-
----
-
-# Future
-
-- Smart Watches
-- Bluetooth Shot Timers
-- PDF Reports
-- Apple Health
-- Google Fit
-- Live Camera Detection
-- Multiple Languages
-- Offline Mode
-- Push Notifications
-
----
-
-# Milestones
-
-MVP
-
-✅ Login
-
-✅ Sessions
-
-✅ Camera
-
-✅ Image Upload
-
-Version 1.0
-
-✅ Automatic Scoring
-
-✅ Statistics
-
-✅ Leaderboards
-
-Version 2.0
-
-✅ Competitions
-
-✅ AI Coach
-
-Version 3.0
-
-✅ Live Scoring
-
-✅ Clubs
-
-✅ Coach Portal
+- [ ] System Analytics
+- [ ] User Management
+- [ ] Application Settings
+- [ ] Data Export
